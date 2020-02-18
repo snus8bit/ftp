@@ -55,6 +55,7 @@ type dialOptions struct {
 	location    *time.Location
 	debugOutput io.Writer
 	dialFunc    func(network, address string) (net.Conn, error)
+	dcTimeout   time.Duration
 }
 
 // Entry describes a file and is returned by List().
@@ -215,6 +216,16 @@ func DialWithDebugOutput(w io.Writer) DialOption {
 func DialWithDialFunc(f func(network, address string) (net.Conn, error)) DialOption {
 	return DialOption{func(do *dialOptions) {
 		do.dialFunc = f
+	}}
+}
+
+// DialWithDataConnectionTimeout returns a DialOption that configures the ServerConn with timeout
+// for reading from data connection.
+// It only affects data socket which is internally created for commands like LIST.
+// It is "dynamic", which means it is restarted after each data portion arrives.
+func DialWithDataConnectionTimeout(timeout time.Duration) DialOption {
+	return DialOption{func(do *dialOptions) {
+		do.dcTimeout = timeout
 	}}
 }
 
@@ -481,6 +492,13 @@ func (c *ServerConn) cmdDataConnFrom(offset uint64, format string, args ...inter
 	return conn, nil
 }
 
+// resetDcTimeout restart timeout for a connection
+func (c *ServerConn) resetDcTimeout(conn net.Conn) {
+	if c.options.dcTimeout > 0 {
+		conn.SetDeadline(time.Now().Add(c.options.dcTimeout))
+	}
+}
+
 // NameList issues an NLST FTP command.
 func (c *ServerConn) NameList(path string) (entries []string, err error) {
 	conn, err := c.cmdDataConnFrom(0, "NLST %s", path)
@@ -492,8 +510,10 @@ func (c *ServerConn) NameList(path string) (entries []string, err error) {
 	defer r.Close()
 
 	scanner := bufio.NewScanner(r)
+	c.resetDcTimeout(conn)
 	for scanner.Scan() {
 		entries = append(entries, scanner.Text())
+		c.resetDcTimeout(conn)
 	}
 	if err = scanner.Err(); err != nil {
 		return entries, err
@@ -523,12 +543,14 @@ func (c *ServerConn) List(path string) (entries []*Entry, err error) {
 	defer r.Close()
 
 	scanner := bufio.NewScanner(r)
+	c.resetDcTimeout(conn)
 	now := time.Now()
 	for scanner.Scan() {
 		entry, err := parser(scanner.Text(), now, c.options.location)
 		if err == nil {
 			entries = append(entries, entry)
 		}
+		c.resetDcTimeout(conn)
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, err
@@ -618,7 +640,6 @@ func (c *ServerConn) StorFrom(path string, r io.Reader, offset uint64) error {
 	if err != nil {
 		return err
 	}
-
 	_, err = io.Copy(conn, r)
 	conn.Close()
 	if err != nil {
