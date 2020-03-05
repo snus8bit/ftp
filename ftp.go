@@ -74,6 +74,14 @@ type Response struct {
 	closed bool
 }
 
+// Responser interface on a data-connection
+type Responser interface {
+	io.Reader
+	io.Closer
+	// SetDeadline sets the deadlines associated with the connection.
+	SetDeadline(t time.Time) error
+}
+
 // Dial connects to the specified address with optional options
 func Dial(addr string, options ...DialOption) (*ServerConn, error) {
 	do := &dialOptions{}
@@ -605,7 +613,7 @@ func (c *ServerConn) FileSize(path string) (int64, error) {
 // FTP server.
 //
 // The returned ReadCloser must be closed to cleanup the FTP data connection.
-func (c *ServerConn) Retr(path string) (*Response, error) {
+func (c *ServerConn) Retr(path string) (Responser, error) {
 	return c.RetrFrom(path, 0)
 }
 
@@ -613,7 +621,7 @@ func (c *ServerConn) Retr(path string) (*Response, error) {
 // FTP server, the server will not send the offset first bytes of the file.
 //
 // The returned ReadCloser must be closed to cleanup the FTP data connection.
-func (c *ServerConn) RetrFrom(path string, offset uint64) (*Response, error) {
+func (c *ServerConn) RetrFrom(path string, offset uint64) (Responser, error) {
 	conn, err := c.cmdDataConnFrom(offset, "RETR %s", path)
 	if err != nil {
 		return nil, err
