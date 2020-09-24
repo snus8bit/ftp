@@ -634,7 +634,7 @@ func (c *ServerConn) RetrFrom(path string, offset uint64) (Responser, error) {
 // Stor creates the specified file with the content of the io.Reader.
 //
 // Hint: io.Pipe() can be used if an io.Writer is required.
-func (c *ServerConn) Stor(path string, r io.Reader) error {
+func (c *ServerConn) Stor(path string, r io.Reader) (code int, err error) {
 	return c.StorFrom(path, r, 0)
 }
 
@@ -643,91 +643,92 @@ func (c *ServerConn) Stor(path string, r io.Reader) error {
 // on the server will start at the given file offset.
 //
 // Hint: io.Pipe() can be used if an io.Writer is required.
-func (c *ServerConn) StorFrom(path string, r io.Reader, offset uint64) error {
+func (c *ServerConn) StorFrom(path string, r io.Reader, offset uint64) (code int, err error) {
 	conn, err := c.cmdDataConnFrom(offset, "STOR %s", path)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	_, err = io.Copy(conn, r)
 	conn.Close()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	_, _, err = c.conn.ReadResponse(StatusClosingDataConnection)
-	return err
+	code, _, err = c.conn.ReadResponse(StatusClosingDataConnection)
+	return code, err
 }
 
 // Rename renames a file on the remote FTP server.
-func (c *ServerConn) Rename(from, to string) error {
-	_, _, err := c.cmd(StatusRequestFilePending, "RNFR %s", from)
+// if code > 0 then it's not a connection/protocol error. It's a servere reply error like 553 file
+// already exists
+func (c *ServerConn) Rename(from, to string) (code int, err error) {
+	code, _, err = c.cmd(StatusRequestFilePending, "RNFR %s", from)
 	if err != nil {
-		return err
+		return code, err
 	}
-
-	_, _, err = c.cmd(StatusRequestedFileActionOK, "RNTO %s", to)
-	return err
+	code, _, err = c.cmd(StatusRequestedFileActionOK, "RNTO %s", to)
+	return code, err
 }
 
 // Delete issues a DELE FTP command to delete the specified file from the
 // remote FTP server.
-func (c *ServerConn) Delete(path string) error {
-	_, _, err := c.cmd(StatusRequestedFileActionOK, "DELE %s", path)
-	return err
+func (c *ServerConn) Delete(path string) (code int, err error) {
+	code, _, err = c.cmd(StatusRequestedFileActionOK, "DELE %s", path)
+	return code, err
 }
 
 // RemoveDirRecur deletes a non-empty folder recursively using
 // RemoveDir and Delete
-func (c *ServerConn) RemoveDirRecur(path string) error {
-	err := c.ChangeDir(path)
+func (c *ServerConn) RemoveDirRecur(path string) (code int, err error) {
+	err = c.ChangeDir(path)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	currentDir, err := c.CurrentDir()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	entries, err := c.List(currentDir)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	for _, entry := range entries {
 		if entry.Name != ".." && entry.Name != "." {
 			if entry.Type == EntryTypeFolder {
-				err = c.RemoveDirRecur(currentDir + "/" + entry.Name)
+				code, err = c.RemoveDirRecur(currentDir + "/" + entry.Name)
 				if err != nil {
-					return err
+					return code, err
 				}
 			} else {
-				err = c.Delete(entry.Name)
+				code, err = c.Delete(entry.Name)
 				if err != nil {
-					return err
+					return code, err
 				}
 			}
 		}
 	}
 	err = c.ChangeDirToParent()
 	if err != nil {
-		return err
+		return 0, err
 	}
-	err = c.RemoveDir(currentDir)
-	return err
+	code, err = c.RemoveDir(currentDir)
+	return code, err
 }
 
 // MakeDir issues a MKD FTP command to create the specified directory on the
 // remote FTP server.
-func (c *ServerConn) MakeDir(path string) error {
-	_, _, err := c.cmd(StatusPathCreated, "MKD %s", path)
-	return err
+func (c *ServerConn) MakeDir(path string) (code int, err error) {
+	code, _, err = c.cmd(StatusPathCreated, "MKD %s", path)
+	return code, err
 }
 
 // RemoveDir issues a RMD FTP command to remove the specified directory from
 // the remote FTP server.
-func (c *ServerConn) RemoveDir(path string) error {
-	_, _, err := c.cmd(StatusRequestedFileActionOK, "RMD %s", path)
-	return err
+func (c *ServerConn) RemoveDir(path string) (code int, err error) {
+	code, _, err = c.cmd(StatusRequestedFileActionOK, "RMD %s", path)
+	return code, err
 }
 
 // NoOp issues a NOOP FTP command.

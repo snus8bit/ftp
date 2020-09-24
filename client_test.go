@@ -51,7 +51,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 	}
 
 	data := bytes.NewBufferString(testData)
-	err = c.Stor("test", data)
+	_, err = c.Stor("test", data)
 	if err != nil {
 		t.Error(err)
 	}
@@ -61,7 +61,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 		t.Error(err)
 	}
 
-	err = c.Rename("test", "tset")
+	_, err = c.Rename("test", "tset")
 	if err != nil {
 		t.Error(err)
 	}
@@ -126,12 +126,12 @@ func testConn(t *testing.T, disableEPSV bool) {
 		t.Fatal("expected error, got nil")
 	}
 
-	err = c.Delete("tset")
+	_, err = c.Delete("tset")
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = c.MakeDir(testDir)
+	_, err = c.MakeDir(testDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,7 +154,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 		t.Errorf("Unexpected entries: %v", entries)
 	}
 
-	err = c.RemoveDir(testDir)
+	_, err = c.RemoveDir(testDir)
 	if err != nil {
 		t.Error(err)
 	}
@@ -236,7 +236,7 @@ func TestWrongLogin(t *testing.T) {
 func TestDeleteDirRecur(t *testing.T) {
 	mock, c := openConn(t, "127.0.0.1")
 
-	err := c.RemoveDirRecur("testDir")
+	_, err := c.RemoveDirRecur("testDir")
 	if err != nil {
 		t.Error(err)
 	}
@@ -268,7 +268,7 @@ func TestDeleteDirRecur(t *testing.T) {
 func TestMissingFolderDeleteDirRecur(t *testing.T) {
 	mock, c := openConn(t, "127.0.0.1")
 
-	err := c.RemoveDirRecur("missing-dir")
+	_, err := c.RemoveDirRecur("missing-dir")
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}
