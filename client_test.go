@@ -26,22 +26,22 @@ func testConn(t *testing.T, disableEPSV bool) {
 
 	mock, c := openConn(t, "127.0.0.1", DialWithTimeout(5*time.Second), DialWithDisabledEPSV(disableEPSV))
 
-	err := c.Login("anonymous", "anonymous")
+	err := c.Login(ctx, "anonymous", "anonymous")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = c.NoOp()
+	err = c.NoOp(ctx)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = c.ChangeDir("incoming")
+	err = c.ChangeDir(ctx, "incoming")
 	if err != nil {
 		t.Error(err)
 	}
 
-	dir, err := c.CurrentDir()
+	dir, err := c.CurrentDir(ctx)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -51,23 +51,23 @@ func testConn(t *testing.T, disableEPSV bool) {
 	}
 
 	data := bytes.NewBufferString(testData)
-	_, err = c.Stor("test", data)
+	_, err = c.Stor(ctx, "test", data)
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = c.List(".")
+	_, err = c.List(ctx, ".")
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = c.Rename("test", "tset")
+	_, err = c.Rename(ctx, "test", "tset")
 	if err != nil {
 		t.Error(err)
 	}
 
 	// Read without deadline
-	r, err := c.Retr("tset")
+	r, err := c.Retr(ctx, "tset")
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -83,7 +83,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 	}
 
 	// Read with deadline
-	r, err = c.Retr("tset")
+	r, err = c.Retr(ctx, "tset")
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -98,7 +98,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 	}
 
 	// Read with offset
-	r, err = c.RetrFrom("tset", 5)
+	r, err = c.RetrFrom(ctx, "tset", 5)
 	if err != nil {
 		t.Error(err)
 	} else {
@@ -113,7 +113,7 @@ func testConn(t *testing.T, disableEPSV bool) {
 		r.Close()
 	}
 
-	fileSize, err := c.FileSize("magic-file")
+	fileSize, err := c.FileSize(ctx, "magic-file")
 	if err != nil {
 		t.Error(err)
 	}
@@ -121,32 +121,32 @@ func testConn(t *testing.T, disableEPSV bool) {
 		t.Errorf("file size %q, expected %q", fileSize, 42)
 	}
 
-	_, err = c.FileSize("not-found")
+	_, err = c.FileSize(ctx, "not-found")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 
-	_, err = c.Delete("tset")
+	_, err = c.Delete(ctx, "tset")
 	if err != nil {
 		t.Error(err)
 	}
 
-	_, err = c.MakeDir(testDir)
+	_, err = c.MakeDir(ctx, testDir)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = c.ChangeDir(testDir)
+	err = c.ChangeDir(ctx, testDir)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = c.ChangeDirToParent()
+	err = c.ChangeDirToParent(ctx)
 	if err != nil {
 		t.Error(err)
 	}
 
-	entries, err := c.NameList("/")
+	entries, err := c.NameList(ctx, "/")
 	if err != nil {
 		t.Error(err)
 	}
@@ -154,12 +154,12 @@ func testConn(t *testing.T, disableEPSV bool) {
 		t.Errorf("Unexpected entries: %v", entries)
 	}
 
-	_, err = c.RemoveDir(testDir)
+	_, err = c.RemoveDir(ctx, testDir)
 	if err != nil {
 		t.Error(err)
 	}
 
-	err = c.Logout()
+	err = c.Logout(ctx)
 	if err != nil {
 		if protoErr := err.(*textproto.Error); protoErr != nil {
 			if protoErr.Code != StatusNotImplemented {
@@ -177,29 +177,10 @@ func testConn(t *testing.T, disableEPSV bool) {
 	// Wait for the connection to close
 	mock.Wait()
 
-	err = c.NoOp()
+	err = c.NoOp(ctx)
 	if err == nil {
 		t.Error("Expected error")
 	}
-}
-
-// TestConnect tests the legacy Connect function
-func TestConnect(t *testing.T) {
-	mock, err := newFtpMock(t, "127.0.0.1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mock.Close()
-
-	c, err := Connect(mock.Addr())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := c.Quit(); err != nil {
-		t.Fatal(err)
-	}
-	mock.Wait()
 }
 
 func TestTimeout(t *testing.T) {
@@ -207,7 +188,7 @@ func TestTimeout(t *testing.T) {
 		t.Skip("skipping test in short mode.")
 	}
 
-	c, err := DialTimeout("localhost:2121", 1*time.Second)
+	c, err := DialTimeout(ctx, "localhost:2121", 1*time.Second)
 	if err == nil {
 		t.Fatal("expected timeout, got nil error")
 		c.Quit()
@@ -221,13 +202,13 @@ func TestWrongLogin(t *testing.T) {
 	}
 	defer mock.Close()
 
-	c, err := DialTimeout(mock.Addr(), 5*time.Second)
+	c, err := DialTimeout(ctx, mock.Addr(), 5*time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer c.Quit()
 
-	err = c.Login("zoo2Shia", "fei5Yix9")
+	err = c.Login(ctx, "zoo2Shia", "fei5Yix9")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -236,7 +217,7 @@ func TestWrongLogin(t *testing.T) {
 func TestDeleteDirRecur(t *testing.T) {
 	mock, c := openConn(t, "127.0.0.1")
 
-	_, err := c.RemoveDirRecur("testDir")
+	_, err := c.RemoveDirRecur(ctx, "testDir")
 	if err != nil {
 		t.Error(err)
 	}
@@ -268,7 +249,7 @@ func TestDeleteDirRecur(t *testing.T) {
 func TestMissingFolderDeleteDirRecur(t *testing.T) {
 	mock, c := openConn(t, "127.0.0.1")
 
-	_, err := c.RemoveDirRecur("missing-dir")
+	_, err := c.RemoveDirRecur(ctx, "missing-dir")
 	if err == nil {
 		t.Fatal("expected error got nil")
 	}

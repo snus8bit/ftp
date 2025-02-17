@@ -1,6 +1,7 @@
 package ftp
 
 import (
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"testing"
 )
+
+var ctx = context.Background()
 
 type ftpMock struct {
 	address  string
@@ -292,12 +295,12 @@ func openConn(t *testing.T, addr string, options ...DialOption) (*ftpMock, *Serv
 	}
 	defer mock.Close()
 
-	c, err := Dial(mock.Addr(), options...)
+	c, err := Dial(ctx, mock.Addr(), options...)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = c.Login("anonymous", "anonymous")
+	err = c.Login(ctx, "anonymous", "anonymous")
 	if err != nil {
 		t.Fatal(err)
 	}
